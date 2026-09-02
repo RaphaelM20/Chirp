@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import SignupPage from "./pages/SignupPage";
 import LoginPage from "./pages/LoginPage";
 import Navbar from "./components/Navbar";
@@ -30,7 +30,10 @@ function App() {
       <Routes>
         <Route path="/signup" element={<SignupPage setToken={setToken} />} />
         <Route path="/login" element={<LoginPage setToken={setToken} />} />
-        <Route path="/" element={<HomePage />} />
+        <Route
+          path="/"
+          element={token ? <HomePage /> : <Navigate to="/login" />}
+        />
         <Route
           path="/connect_people"
           element={<FollowPage currentUser={currentUser} />}
