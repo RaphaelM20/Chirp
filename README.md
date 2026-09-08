@@ -1,16 +1,46 @@
-# React + Vite
+# Chirp
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A full-stack Twitter/X clone. [Live Demo](https://chirp-chirp.netlify.app/login) | [API Repo](https://github.com/RaphaelM20/Chirp-api)
 
-Currently, two official plugins are available:
+![Chirp Preview](https://res.cloudinary.com/zrc0epiv/image/upload/v1788888134/chirp-preview_dudqrr.jpg)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Features
 
-## React Compiler
+- JWT authentication (sign up, log in, guest access)
+- Create, view, and delete posts
+- Like and unlike posts and comments
+- Comment on posts
+- User profiles with posts, replies, and likes tabs
+- Follow and unfollow users
+- Discover new users to follow
+- Edit profile (name, username, bio, picture)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Tech Stack
 
-## Expanding the ESLint configuration
+- React, React Router, Vite
+- Node.js, Express, Passport.js
+- PostgreSQL, Prisma ORM
+- Deployed on Netlify, Render, Neon
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Running Locally
+
+```bash
+# Clone both repos
+git clone https://github.com/RaphaelM20/Chirp
+git clone https://github.com/RaphaelM20/Chirp-api
+
+# Backend
+cd Chirp-api
+npm install
+# create .env with DATABASE_URL and JWT_SECRET
+npx prisma migrate dev
+npm run dev
+
+# Frontend
+cd Chirp
+npm install
+# create .env with VITE_API_URL=http://localhost:3000
+npm run dev
+```
+
+Visit `http://localhost:5173` and use **Continue as Guest** to explore.
