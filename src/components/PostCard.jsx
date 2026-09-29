@@ -1,148 +1,210 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { api } from "../lib/api";
+import { useAuth } from "../lib/auth";
+import { useToast } from "../lib/toast";
+import { formatFullTimestamp, formatRelativeTime } from "../lib/time";
+import Avatar from "./Avatar";
+import Composer from "./Composer";
+import LikeButton from "./LikeButton";
+import Modal from "./Modal";
+import { ReplyIcon, TrashIcon } from "./Icons";
 
-function PostCard({ post, currentUserId, currentUser, onPostsUpdate }) {
-  const [commentFormPostId, setCommentFormPostId] = useState(null);
-  const [commentQuery, setCommentQuery] = useState("");
+export function PostMeta({ author, createdAt, href }) {
+  const time = (
+    <time dateTime={createdAt} title={formatFullTimestamp(createdAt)}>
+      {formatRelativeTime(createdAt)}
+    </time>
+  );
+  return (
+    <div className="post-meta">
+      <Link to={`/${author.username}`} className="post-author">
+        {author.name}
+      </Link>
+      <span className="handle">@{author.username}</span>
+      <span className="meta-dot" aria-hidden="true">
+        ·
+      </span>
+      {href ? (
+        <Link to={href} className="post-time">
+          {time}
+        </Link>
+      ) : (
+        <span className="post-time">{time}</span>
+      )}
+    </div>
+  );
+}
 
-  const formatTime = (dateString) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    if (diffMins < 60) return `${diffMins}m`;
-    if (diffHours < 24) return `${diffHours}h`;
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+export function DeletePostDialog({ post, onClose, onDeleted }) {
+  const toast = useToast();
+  const [pending, setPending] = useState(false);
+
+  const confirm = async () => {
+    setPending(true);
+    try {
+      await api.deletePost(post.id);
+      toast.success("Your post was deleted.");
+      onDeleted(post.id);
+    } catch (err) {
+      toast.error(err.message);
+      setPending(false);
+      onClose();
+    }
   };
 
-  const handleLike = async (postId, likes) => {
-    const alreadyLiked = likes.some((l) => l.userId === currentUserId);
-    const method = alreadyLiked ? "DELETE" : "POST";
-    await fetch(`${import.meta.env.VITE_API_URL}/posts/${postId}/likes`, {
-      method,
-      headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-    });
-    onPostsUpdate();
-  };
+  return (
+    <Modal title="Delete post?" onClose={onClose} size="sm">
+      <p className="dialog-text">
+        This can't be undone. The post will be removed from your profile and
+        from the timeline of anyone who follows you.
+      </p>
+      <div className="dialog-actions">
+        <button
+          type="button"
+          className="btn btn-danger btn-block btn-lg"
+          onClick={confirm}
+          disabled={pending}
+        >
+          {pending ? "Deleting…" : "Delete"}
+        </button>
+        <button
+          type="button"
+          className="btn btn-outline btn-block btn-lg"
+          onClick={onClose}
+          disabled={pending}
+        >
+          Cancel
+        </button>
+      </div>
+    </Modal>
+  );
+}
 
-  const handleComment = async (postId) => {
-    await fetch(`${import.meta.env.VITE_API_URL}/posts/${postId}/comment`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+export function ReplyDialog({ post, onClose, onReplied }) {
+  const { user } = useAuth();
+  const toast = useToast();
+
+  const reply = async (content) => {
+    const comment = await api.comment(post.id, content);
+    onReplied({
+      ...comment,
+      likes: [],
+      user: {
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        picture: user.picture,
       },
-      body: JSON.stringify({ content: commentQuery }),
     });
-    onPostsUpdate();
-    setCommentQuery("");
-    setCommentFormPostId(null);
+    toast.success("Your reply was sent.");
+    onClose();
   };
 
-  const handleDelete = async (postId) => {
-    await fetch(`${import.meta.env.VITE_API_URL}/posts/${postId}`, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-      },
-    });
-    onPostsUpdate();
+  return (
+    <Modal title="Reply" onClose={onClose} hideTitle>
+      <div className="reply-context">
+        <div className="thread-gutter">
+          <Avatar user={post.user} />
+          <span className="thread-line" aria-hidden="true" />
+        </div>
+        <div className="reply-context-body">
+          <PostMeta author={post.user} createdAt={post.createdAt} />
+          <p className="post-text">{post.content}</p>
+          <p className="replying-to">
+            Replying to <span className="accent-text">@{post.user.username}</span>
+          </p>
+        </div>
+      </div>
+      <Composer
+        placeholder="Post your reply"
+        submitLabel="Reply"
+        onSubmit={reply}
+        autoFocus
+      />
+    </Modal>
+  );
+}
+
+function PostCard({ post, onUpdate, onDelete, threaded = false }) {
+  const { user, isGuest, requireAccount } = useAuth();
+  const navigate = useNavigate();
+  const [dialog, setDialog] = useState(null);
+  const href = `/${post.user.username}/${post.id}`;
+  const isOwn = !isGuest && post.user.id === user.id;
+  const replies = post.comments.length;
+
+  // The whole card opens the post, except for clicks on its own controls
+  // or when the user is selecting text. The timestamp is the keyboard path.
+  const openPost = (e) => {
+    if (e.target.closest("a, button")) return;
+    if (window.getSelection()?.toString()) return;
+    navigate(href);
   };
 
   return (
     <>
-      <div className="post-container">
-        <Link to={`/${post.user.username}`}>
-          <img className="post-picture" src={post.user.picture} />
-        </Link>
+      <article className={`post is-clickable${threaded ? " is-threaded" : ""}`} onClick={openPost}>
+        <div className="thread-gutter">
+          <Link to={`/${post.user.username}`} className="avatar-link" tabIndex={-1}>
+            <Avatar user={post.user} alt={post.user.name} />
+          </Link>
+          {threaded && <span className="thread-line" aria-hidden="true" />}
+        </div>
         <div className="post-body">
-          <div className="post-header-row">
-            <div className="post-header">
-              <Link to={`/${post.user.username}`} className="post-name">
-                {post.user.name}
-              </Link>
-              <span className="post-username">@{post.user.username}</span>
-              <span className="post-dot">·</span>
-              <span className="post-time">{formatTime(post.createdAt)}</span>
-            </div>
-            {post.userId === currentUserId && (
+          <div className="post-top">
+            <PostMeta author={post.user} createdAt={post.createdAt} href={href} />
+            {isOwn && onDelete && (
               <button
                 type="button"
-                className="btn-delete"
-                onClick={() => handleDelete(post.id)}
+                className="icon-btn icon-btn-sm icon-btn-danger"
+                onClick={() => setDialog("delete")}
+                aria-label="Delete post"
+                title="Delete"
               >
-                Delete
+                <TrashIcon size={18} />
               </button>
             )}
           </div>
-          <Link to={`/${post.user.username}/${post.id}`}>
-            <p className="post-content">{post.content}</p>
-          </Link>
+          <p className="post-text">{post.content}</p>
           <div className="post-actions">
             <button
-              className="action-btn"
-              onClick={() => setCommentFormPostId(post.id)}
+              type="button"
+              className="action action-reply"
+              onClick={() => requireAccount("reply") && setDialog("reply")}
+              aria-label={`Reply. ${replies} ${replies === 1 ? "reply" : "replies"}`}
             >
-              💬 {post.comments.length}
+              <span className="action-icon">
+                <ReplyIcon size={18} />
+              </span>
+              <span className="action-count" aria-hidden="true">
+                {replies > 0 ? replies : ""}
+              </span>
             </button>
-            <button
-              className={`action-btn ${post.likes.some((l) => l.userId === currentUserId) ? "liked" : ""}`}
-              onClick={() => handleLike(post.id, post.likes)}
-            >
-              {post.likes.some((l) => l.userId === currentUserId) ? "❤️" : "♡"}{" "}
-              {post.likes.length}
-            </button>
+            <LikeButton
+              likes={post.likes}
+              onChange={(likes) => onUpdate(post.id, (p) => ({ ...p, likes }))}
+              send={(liked) => api.setPostLike(post.id, liked)}
+            />
           </div>
         </div>
-      </div>
+      </article>
 
-      {commentFormPostId === post.id && (
-        <div className="overlay">
-          <div className="reply-modal">
-            <button
-              className="close-btn"
-              onClick={() => setCommentFormPostId(null)}
-            >
-              ✕
-            </button>
-            <div className="reply-original-post">
-              <img src={post.user.picture} className="reply-avatar" />
-              <div>
-                <div className="post-header">
-                  <span className="post-name">{post.user.name}</span>
-                  <span className="post-username">@{post.user.username}</span>
-                  <span className="post-dot">·</span>
-                  <span className="post-time">
-                    {formatTime(post.createdAt)}
-                  </span>
-                </div>
-                <p className="post-content">{post.content}</p>
-              </div>
-            </div>
-            <div className="reply-form-row">
-              <img src={currentUser?.picture} className="reply-avatar" />
-              <form
-                className="reply-form"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleComment(post.id);
-                }}
-              >
-                <input
-                  type="text"
-                  value={commentQuery}
-                  onChange={(e) => setCommentQuery(e.target.value)}
-                  placeholder="Post your reply"
-                  className="reply-input"
-                />
-                <button type="submit" className="reply-btn">
-                  Reply
-                </button>
-              </form>
-            </div>
-          </div>
-        </div>
+      {dialog === "reply" && (
+        <ReplyDialog
+          post={post}
+          onClose={() => setDialog(null)}
+          onReplied={(comment) =>
+            onUpdate(post.id, (p) => ({ ...p, comments: [...p.comments, comment] }))
+          }
+        />
+      )}
+      {dialog === "delete" && (
+        <DeletePostDialog
+          post={post}
+          onClose={() => setDialog(null)}
+          onDeleted={onDelete}
+        />
       )}
     </>
   );

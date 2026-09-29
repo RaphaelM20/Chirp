@@ -1,98 +1,54 @@
-import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { paths } from "../lib/api";
+import useApi from "../hooks/useApi";
+import useDocumentTitle from "../hooks/useDocumentTitle";
+import PageHeader from "../components/PageHeader";
+import UserRow from "../components/UserRow";
+import { UsersIcon } from "../components/Icons";
+import {
+  EmptyState,
+  ErrorState,
+  LoadingRegion,
+  UserSkeleton,
+} from "../components/States";
 
-function FollowPage({ currentUser }) {
-  const [followList, setFollowList] = useState([]);
-  const [followedIds, setFollowedIds] = useState([]);
-  const [hoveredId, setHoveredId] = useState(null);
+function FollowPage() {
+  useDocumentTitle("Who to follow");
+  const { data: people, error, loading, retry } = useApi(paths.suggestions);
 
-  useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL}/not-following`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setFollowList(data);
-      });
-  }, []);
-
-  const handleFollowLocal = async (followingId) => {
-    await fetch(`${import.meta.env.VITE_API_URL}/follow`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-      },
-      body: JSON.stringify({ followingId }),
-    });
-    setFollowedIds([...followedIds, followingId]);
-  };
-
-  const handleUnfollowLocal = async (followingId) => {
-    await fetch(`${import.meta.env.VITE_API_URL}/follow`, {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-      },
-      body: JSON.stringify({ followingId }),
-    });
-    setFollowedIds(followedIds.filter((id) => id !== followingId));
-  };
+  let content;
+  if (loading) {
+    content = (
+      <LoadingRegion label="Loading suggestions">
+        <UserSkeleton count={8} />
+      </LoadingRegion>
+    );
+  } else if (error) {
+    content = <ErrorState error={error} onRetry={retry} />;
+  } else if (people.length === 0) {
+    content = (
+      <EmptyState
+        icon={<UsersIcon size={28} />}
+        title="You're following everyone"
+        message="When new people join Chirp, they'll show up here."
+      />
+    );
+  } else {
+    content = (
+      <div className="list-divided">
+        {people.map((person) => (
+          <UserRow key={person.id} person={person} showBio />
+        ))}
+      </div>
+    );
+  }
 
   return (
-    <div className="follow-container">
-      <h2 className="follow-header">Who to follow</h2>
-      {followList &&
-        followList.map((user) => {
-          const youFollowThem = followedIds.includes(user.id);
-          const theyFollowYou = currentUser?.followers.some(
-            (f) => f.followerId === user.id,
-          );
-          return (
-            <div key={user.id} className="follow-item">
-              <Link to={`/${user.username}`} className="post-picture">
-                <img src={user.picture} className="follow-avatar" />
-              </Link>
-              <div>
-                <Link to={`/${user.username}`} className="post-name">
-                  <p>{user.name}</p>
-                </Link>
-                <p>
-                  @{user.username}
-                  {theyFollowYou && (
-                    <span className="follows-you-badge"> · Follows you</span>
-                  )}
-                </p>
-              </div>
-              <button
-                className={
-                  !youFollowThem
-                    ? "btn-follow"
-                    : hoveredId === user.id
-                      ? "btn-unfollow-hover"
-                      : "btn-following"
-                }
-                onClick={() => {
-                  if (youFollowThem) {
-                    handleUnfollowLocal(user.id);
-                  } else {
-                    handleFollowLocal(user.id);
-                  }
-                }}
-                onMouseEnter={() => setHoveredId(user.id)}
-                onMouseLeave={() => setHoveredId(null)}
-              >
-                {!youFollowThem
-                  ? "Follow"
-                  : hoveredId === user.id
-                    ? "Unfollow"
-                    : "Following"}
-              </button>
-            </div>
-          );
-        })}
-    </div>
+    <>
+      <PageHeader title="Who to follow" subtitle="Suggested for you" back />
+      <section aria-label="Suggested accounts" aria-busy={loading}>
+        {content}
+      </section>
+    </>
   );
 }
 

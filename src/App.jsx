@@ -1,58 +1,30 @@
-import { useEffect, useState } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
-import SignupPage from "./pages/SignupPage";
-import LoginPage from "./pages/LoginPage";
-import Navbar from "./components/Navbar";
-import HomePage from "./pages/HomePage";
-import ProfilePage from "./pages/ProfilePage";
+import { Route, Routes } from "react-router-dom";
+import AuthLayout from "./components/AuthLayout";
+import Layout from "./components/Layout";
 import FollowPage from "./pages/FollowPage";
+import HomePage from "./pages/HomePage";
+import LoginPage from "./pages/LoginPage";
+import NotFoundPage from "./pages/NotFoundPage";
 import PostPage from "./pages/PostPage";
+import ProfilePage from "./pages/ProfilePage";
+import SignupPage from "./pages/SignupPage";
 
 function App() {
-  const [token, setToken] = useState(localStorage.getItem("authToken"));
-  const [currentUser, setCurrentUser] = useState(null);
-
-  useEffect(() => {
-    if (token) {
-      fetch(`${import.meta.env.VITE_API_URL}/user/me`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-        },
-      })
-        .then((r) => r.json())
-        .then(setCurrentUser);
-    }
-  }, [token]);
-
   return (
-    <>
-      <Navbar token={token} setToken={setToken} currentUser={currentUser} />
-      <Routes>
-        <Route path="/signup" element={<SignupPage setToken={setToken} />} />
-        <Route path="/login" element={<LoginPage setToken={setToken} />} />
-        <Route
-          path="/"
-          element={token ? <HomePage /> : <Navigate to="/login" />}
-        />
-        <Route
-          path="/connect_people"
-          element={<FollowPage currentUser={currentUser} />}
-        />
-        <Route
-          path="/:username/:id"
-          element={<PostPage currentUser={currentUser} />}
-        />
-        <Route
-          path="/:username"
-          element={
-            <ProfilePage
-              currentUser={currentUser}
-              setCurrentUser={setCurrentUser}
-            />
-          }
-        />
-      </Routes>
-    </>
+    <Routes>
+      <Route element={<AuthLayout />}>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
+      </Route>
+      <Route element={<Layout />}>
+        <Route index element={<HomePage />} />
+        <Route path="/connect_people" element={<FollowPage />} />
+        {/* Dynamic segments last: they match any single path segment. */}
+        <Route path="/:username/:id" element={<PostPage />} />
+        <Route path="/:username" element={<ProfilePage />} />
+        <Route path="*" element={<NotFoundPage />} />
+      </Route>
+    </Routes>
   );
 }
 

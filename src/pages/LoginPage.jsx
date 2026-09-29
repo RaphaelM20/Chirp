@@ -1,87 +1,95 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../lib/auth";
+import useDocumentTitle from "../hooks/useDocumentTitle";
+import PasswordField from "../components/PasswordField";
 
-function LoginPage({ setToken }) {
+function LoginPage() {
+  useDocumentTitle("Log in");
+  const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    const loginUrl = `${import.meta.env.VITE_API_URL}/login`;
-    const credentials = { username, password };
-
+    setError("");
+    setPending(true);
     try {
-      const response = await fetch(loginUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify(credentials),
-      });
-
-      const data = await response.json();
-      localStorage.setItem("authToken", data.token);
-      setToken(data.token);
-      navigate("/");
+      // AuthLayout redirects once a member session starts; logging in with
+      // the guest account keeps the guest session, so leave manually.
+      const kind = await login(username.trim(), password);
+      if (kind === "guest") navigate(location.state?.from || "/");
     } catch (err) {
-      setError(err.message || "Something went wrong. Please try again");
+      setError(
+        err.status === 401 ? "Incorrect username or password." : err.message,
+      );
+      setPending(false);
     }
   };
 
-  const handleGuestLogin = async () => {
-    const response = await fetch(`${import.meta.env.VITE_API_URL}/login`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ username: "guest", password: "guest123" }),
-    });
-    const data = await response.json();
-    localStorage.setItem("authToken", data.token);
-    setToken(data.token);
-    navigate("/");
-  };
-
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <h2 className="auth-title">Welcome Back</h2>
-        <p className="auth-subtitle">
-          Don't have an account? <Link to="/signup">Sign Up</Link>
+    <>
+      <h1 className="auth-title">Log in to Chirp</h1>
+      <p className="auth-subtitle">
+        Don't have an account?{" "}
+        <Link to="/signup" state={location.state}>
+          Sign up
+        </Link>
+      </p>
+
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
         </p>
-        {error && <p className="auth-error">{error}</p>}
-        <form onSubmit={handleLogin} className="auth-form">
-          <div className="auth-field">
-            <label htmlFor="username">Username</label>
-            <input
-              type="text"
-              id="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-            />
-          </div>
-          <div className="auth-field">
-            <label htmlFor="password">Password</label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-          <button type="submit" className="auth-btn">
-            Login
-          </button>
-          <button onClick={handleGuestLogin} className="auth-btn-guest">
-            Continue as Guest
-          </button>
-        </form>
+      )}
+
+      <form onSubmit={handleLogin} className="form" noValidate>
+        <div className="field">
+          <label htmlFor="username">Username</label>
+          <input
+            id="username"
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
+            required
+            autoFocus
+          />
+        </div>
+        <PasswordField
+          id="password"
+          label="Password"
+          value={password}
+          onChange={setPassword}
+          autoComplete="current-password"
+        />
+        <button
+          type="submit"
+          className="btn btn-primary btn-block btn-lg"
+          disabled={pending || !username.trim() || !password}
+        >
+          {pending ? "Logging in…" : "Log in"}
+        </button>
+      </form>
+
+      <div className="divider">
+        <span>or</span>
       </div>
-    </div>
+
+      <button
+        type="button"
+        className="btn btn-outline btn-block btn-lg"
+        onClick={() => navigate(location.state?.from || "/")}
+      >
+        Continue as guest
+      </button>
+    </>
   );
 }
 
