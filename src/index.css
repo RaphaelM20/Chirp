@@ -116,6 +116,14 @@
   }
 }
 
+/* The live site gets a fixed "Powered by Netlify" badge in the bottom-right
+   corner, injected by Netlify's HUD script (not by this app). Reserve room
+   for it so it never covers our fixed controls. Local dev has no badge, so
+   the clearance is 0 there. */
+html:has(script[src*="/.netlify/scripts/hud"]) {
+  --badge-clearance: 200px;
+}
+
 /* ==========================================================================
    Base
    ========================================================================== */
@@ -621,8 +629,16 @@ a:hover {
   min-height: var(--banner-height);
   margin-left: auto;
   margin-right: auto;
-  padding: var(--space-2) var(--space-4) var(--space-2)
-    calc(var(--sidebar-width) + var(--space-4));
+  padding: var(--space-2) calc(var(--space-4) + var(--badge-clearance, 0px))
+    var(--space-2) calc(var(--sidebar-width) + var(--space-4));
+}
+
+/* With the badge present, narrower screens drop the secondary line so the
+   buttons still fit beside the text. */
+@media (max-width: 1279px) {
+  html:has(script[src*="/.netlify/scripts/hud"]) .guest-banner-sub {
+    display: none;
+  }
 }
 
 .guest-banner-text {
@@ -2056,6 +2072,7 @@ body:has(.has-banner) .toast-region {
     z-index: 30;
     display: flex;
     height: calc(var(--tab-bar-height) + env(safe-area-inset-bottom));
+    padding-right: var(--badge-clearance, 0px);
     padding-bottom: env(safe-area-inset-bottom);
     border-top: 1px solid var(--border);
     background: var(--bg-header);
